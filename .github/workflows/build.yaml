@@ -159,7 +159,7 @@ jobs:
     permissions: write-all
     needs: [ build ]
     runs-on: ubuntu-latest
-    services:
+    # services:
       # telegram-bot-api:
       #   image: aiogram/telegram-bot-api:latest
       #   env:
