@@ -172,7 +172,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      - name: Generate tag if manually triggered
+        id: gen_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            tag="v$(date +'%Y.%m.%d-%H%M%S')"
+            echo "Auto generating tag: $tag"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git tag "$tag"
+            git push origin "$tag"
+            echo "tag=$tag" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Download
         uses: actions/download-artifact@v4
         with:
@@ -183,7 +197,7 @@ jobs:
       - name: Generate release.md
         run: |
           tags=($(git tag --merged $(git rev-parse HEAD) --sort=-creatordate))
-          preTag=$(curl --silent "https://api.github.com/repos/chen08209/FlClash/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")' || echo "")
+          preTag=$(curl --silent "https://api.github.com/repos/${{ github.repository }}/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")' || echo "")
           currentTag=""
           for ((i = 0; i <= ${#tags[@]}; i++)); do
             if (( i < ${#tags[@]} )); then
@@ -219,7 +233,7 @@ jobs:
 
       - name: Patch release.md
         run: |
-          version=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          version=${{ steps.gen_tag.outputs.tag }}
           sed "s|VERSION|$version|g" ./.github/release_template.md >> release.md
 
       - name: Generate sha256
@@ -231,11 +245,13 @@ jobs:
           done  
 
       - name: Release
-        if: ${{ env.IS_STABLE == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.gen_tag.outputs.tag }}
           files: ./dist/*
           body_path: './release.md'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Create Fdroid Source Dir
       #   if: ${{ env.IS_STABLE == 'true' }}
@@ -258,4 +274,3 @@ jobs:
       #     target-branch: main
       #     commit-message: Update from ${{ github.ref_name }}
       #     target-directory: /tmp/
-
